@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Pdseg" parent="Theme.AppCompat.Light.DarkActionBar"/>
+    <style name="Theme.Pdseg" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/black</item>
+    </style>
 </resources>

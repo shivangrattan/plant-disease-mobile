@@ -15,16 +15,14 @@
             android:id="@+id/titleText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tomato Early Blight \nSeverity Classification"
-            android:gravity="center"
+            android:text="Result"
             android:textSize="24sp"
             android:textColor="#2E7D32"
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
-
-        <com.github.chrisbanes.photoview.PhotoView
-            android:id="@+id/leafImageView"
+        <ImageView
+            android:id="@+id/resultImageView"
             android:layout_width="300dp"
             android:layout_height="300dp"
             android:scaleType="centerCrop"
@@ -36,45 +34,26 @@
             android:id="@+id/severityText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textStyle="bold"
             android:text="Severity: --%"
-            android:textSize="20sp"
-            android:textColor="#2E7D32"/>
+            android:textSize="18sp"
+            android:textColor="#2E7D32"
+            android:layout_marginBottom="16dp" />
 
         <TextView
-            android:id="@+id/infoText"
-            android:layout_marginTop="90px"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Treatment recommendations will appear here.\n"
-            android:textColor="#000000"
-            android:textSize="16sp" />
-
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/selectImageBtn"
-            android:layout_marginTop="42px"
+            android:id="@+id/treatmentText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Select Image"
+            android:text="Treatment recommendations will appear here."
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/backBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="New Image"
             android:background="@drawable/rounded_button"
             android:textColor="#FFFFFF" />
-
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/cycleBtn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/rounded_button"
-            android:text="Switch Masks"
-            android:layout_marginTop="10dp"
-            android:textColor="#FFFFFF"
-            android:visibility="gone" />
-
-        <ProgressBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:visibility="gone" />
-
     </LinearLayout>
 </ScrollView>

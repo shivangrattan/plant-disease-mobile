@@ -1,14 +1,17 @@
 package com.example.pdseg
 
+import android.app.Dialog
 import android.graphics.Bitmap
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.StyleSpan
+import android.text.style.BulletSpan
+import android.text.style.RelativeSizeSpan
+import android.view.View
+import android.view.Window
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -17,6 +20,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.DialogFragment
+import com.github.chrisbanes.photoview.PhotoView
 
 class MainActivity : AppCompatActivity(), LeafDiseaseSegmentationHelper.SegmentationListener {
 
@@ -25,6 +30,9 @@ class MainActivity : AppCompatActivity(), LeafDiseaseSegmentationHelper.Segmenta
     private lateinit var progressBar: ProgressBar
     private lateinit var segmentationHelper: LeafDiseaseSegmentationHelper
     private lateinit var infoText: TextView
+    private lateinit var severityText: TextView
+    private lateinit var cycleBtn: Button
+    private lateinit var titleText: TextView
 
     @RequiresApi(Build.VERSION_CODES.Q)
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -46,6 +54,7 @@ class MainActivity : AppCompatActivity(), LeafDiseaseSegmentationHelper.Segmenta
         selectImageBtn = findViewById(R.id.selectImageBtn)
         progressBar = findViewById(R.id.progressBar)
         infoText = findViewById(R.id.infoText)
+        severityText = findViewById(R.id.severityText)
 
         progressBar.hide()
         segmentationHelper = LeafDiseaseSegmentationHelper(this, this)
@@ -64,12 +73,63 @@ class MainActivity : AppCompatActivity(), LeafDiseaseSegmentationHelper.Segmenta
         }
     }
 
-    override fun onResults(resultImage: Bitmap, inferenceTime: Long, ratio: Float) {
+    override fun onResults(resizedBitmap: Bitmap, resultImage: Bitmap, leafMask: Bitmap, inferenceTime: Long, ratio: Float) {
         runOnUiThread {
             progressBar.hide()
+            imageView = findViewById(R.id.leafImageView)
+            selectImageBtn = findViewById(R.id.selectImageBtn)
+            progressBar = findViewById(R.id.progressBar)
+            infoText = findViewById(R.id.infoText)
+            severityText = findViewById(R.id.severityText)
+            cycleBtn = findViewById(R.id.cycleBtn)
+            titleText = findViewById(R.id.titleText)
+
+            titleText.text = "Diseased Spots"
             imageView.setImageBitmap(resultImage)
-            infoText.text = getSpannableTreatment(ratio)
-            Toast.makeText(this, "Processed in $inferenceTime ms", Toast.LENGTH_SHORT).show()
+            severityText.text = "Severity: %.2f%%".format(ratio * 100)
+            infoText.text = getTreatment(ratio)
+
+            cycleBtn.alpha = 0f
+            cycleBtn.visibility = View.VISIBLE
+            cycleBtn.animate().alpha(1f).setDuration(300).start()
+
+            imageView.setOnClickListener {
+                val dialog = FullscreenImageDialog(resultImage)
+                dialog.show(supportFragmentManager, "fullscreenImage")
+            }
+
+            var current_img = 0
+            cycleBtn.setOnClickListener {
+                when (current_img) {
+                    0 -> {
+                        current_img++
+                        titleText.text = "Extracted Leaf"
+                        imageView.setImageBitmap(leafMask)
+                        imageView.setOnClickListener {
+                            val dialog = FullscreenImageDialog(leafMask)
+                            dialog.show(supportFragmentManager, "fullscreenImage")
+                        }
+                    }
+                    1 -> {
+                        current_img++
+                        titleText.text = "Original Image"
+                        imageView.setImageBitmap(resizedBitmap)
+                        imageView.setOnClickListener {
+                            val dialog = FullscreenImageDialog(resizedBitmap)
+                            dialog.show(supportFragmentManager, "fullscreenImage")
+                        }
+                    }
+                    else -> {
+                        current_img = 0
+                        titleText.text = "Diseased Spots"
+                        imageView.setImageBitmap(resultImage)
+                        imageView.setOnClickListener {
+                            val dialog = FullscreenImageDialog(resultImage)
+                            dialog.show(supportFragmentManager, "fullscreenImage")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -81,84 +141,110 @@ class MainActivity : AppCompatActivity(), LeafDiseaseSegmentationHelper.Segmenta
     }
 
     private fun ProgressBar.show() {
-        this.visibility = android.view.View.VISIBLE
+        this.visibility = View.VISIBLE
     }
 
     private fun ProgressBar.hide() {
-        this.visibility = android.view.View.GONE
+        this.visibility = View.GONE
     }
 
-    fun getSpannableTreatment(ratio: Float): SpannableStringBuilder {
+    private fun getTreatment(ratio: Float): SpannableStringBuilder {
         val builder = SpannableStringBuilder()
         val percentage = ratio * 100
         val index = when {
             percentage == 0f -> 0
-            percentage in 0f..3f -> 1
-            percentage in 3f..6f -> 2
-            percentage in 6f..12f -> 3
-            percentage in 12f..25f -> 4
-            percentage in 25f..50f -> 5
-            percentage in 50f..75f -> 6
-            percentage in 75f..87f -> 7
-            percentage in 87f..94f -> 8
-            percentage in 94f..97f -> 9
-            percentage in 97f..100f -> 10
-            else -> 11
+            percentage in 0f..5f -> 1
+            percentage in 6f..20f -> 2
+            percentage in 21f..40f -> 3
+            percentage in 41f..70f -> 4
+            else -> 5
         }
 
-        fun appendBold(label: String, value: String? = null) {
+        fun appendLarge(label: String, value: String? = null, scale: Float = 1.15f) {
             val start = builder.length
             builder.append(label)
-            builder.setSpan(StyleSpan(Typeface.BOLD), start, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            builder.setSpan(
+                RelativeSizeSpan(scale),
+                start,
+                builder.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
             if (value != null) {
                 builder.append(" $value")
             }
-            builder.append("\n")
+            builder.append("\n\n")
         }
 
         fun appendBullet(text: String) {
-            builder.append("• $text\n")
+            val start = builder.length
+            builder.append(text + "\n\n")
+            builder.setSpan(
+                BulletSpan(20),  // 20px gap between bullet and text, adjust as needed
+                start,
+                builder.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
         }
 
-        // Add percentage and index
-        appendBold("Percentage of Diseased Area:", "%.2f".format(percentage) + "%")
-        appendBold("Severity Index:", "$index")
-        builder.append("\n")
+        fun appendBulletEnd(text: String) {
+            val start = builder.length
+            builder.append(text + "\n")
+            builder.setSpan(
+                BulletSpan(20),  // 20px gap between bullet and text, adjust as needed
+                start,
+                builder.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
 
         // Add treatment based on index
         when (index) {
-            in 1..3 -> {
-                appendBold("Mild Infection (Early Symptoms)")
-                appendBold("Recommended Actions:")
-                appendBullet("Prune Affected Leaves: Remove and destroy infected lower leaves to prevent disease spread.")
-                appendBullet("Enhance Air Circulation: Stake or cage plants to improve airflow and reduce humidity.")
-                appendBullet("Mulch Application: Apply organic mulch to prevent soil-borne spores from splashing onto foliage.")
-                appendBullet("Watering Practices: Use drip irrigation or water at the base to keep foliage dry.")
-                appendBullet("Preventative Fungicides: Apply copper-based fungicides or bio-fungicides like Bacillus subtilis.")
+            in 1..1 -> {
+                appendLarge("Severity Index: $index (Mild Infection)")
+                appendBullet("Remove and destroy infected lower leaves to prevent disease spread.")
+                appendBullet("Stake or cage plants to improve airflow and reduce humidity.")
+                appendBulletEnd("Use drip irrigation or water at the base to keep foliage dry.")
             }
 
-            in 4..6 -> {
-                appendBold("Moderate Infection")
-                appendBold("Recommended Actions:")
-                appendBullet("Regular Fungicide Applications: Use fungicides containing chlorothalonil or copper-based products every 7–10 days.")
-                appendBullet("Biological Controls: Apply bio-fungicides like Bacillus subtilis (Serenade) or Bacillus amyloliquefaciens (Double Nickel).")
-                appendBullet("Cultural Practices: Continue removing infected leaves and maintain proper spacing to reduce humidity.")
+            in 2..3 -> {
+                appendLarge("Severity Index: $index (Moderate Infection)")
+                appendBullet("Use fungicides containing chlorothalonil or copper-based products every 7–10 days.")
+                appendBullet("Apply bio-fungicides like Bacillus subtilis (Serenade) or Bacillus amyloliquefaciens (Double Nickel).")
+                appendBulletEnd("Continue removing infected leaves and maintain proper spacing to reduce humidity.")
             }
 
-            in 7..11 -> {
-                appendBold("Severe Infection")
-                appendBold("Recommended Actions:")
-                appendBullet("Intensive Fungicide Regimen: Rotate fungicides with different modes of action, like strobilurins and chlorothalonil.")
-                appendBullet("Remove Severely Affected Plants: Uproot and destroy heavily infected plants.")
-                appendBullet("Post-Harvest Sanitation: Remove all plant debris and practice crop rotation to prevent overwintering pathogens.")
+            in 4..5 -> {
+                appendLarge("Severity Index: $index (Severe Infection)")
+                appendBullet("Rotate fungicides with different modes of action, like strobilurins and chlorothalonil.")
+                appendBullet("Uproot and destroy heavily infected plants.")
+                appendBulletEnd("Remove all plant debris and practice crop rotation to prevent overwintering pathogens.")
             }
 
             else -> {
-                appendBold("Healthy Leaf")
-                appendBullet("No treatment necessary.")
+                appendLarge("Healthy Leaf")
+                appendBulletEnd("No treatment necessary.")
             }
         }
 
         return builder
     }
+    class FullscreenImageDialog(private val bitmap: Bitmap) : DialogFragment() {
+
+        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+            val dialog = Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+            dialog.setContentView(R.layout.dialog_fullscreen_image)
+            dialog.setCancelable(true)
+
+            val photoView = dialog.findViewById<PhotoView>(R.id.fullscreenImage)
+            photoView.setImageBitmap(bitmap)
+
+            // Optional: Dismiss the dialog when the image is tapped
+            photoView.setOnClickListener { dismiss() }
+
+            return dialog
+        }
+    }
+
 }
+

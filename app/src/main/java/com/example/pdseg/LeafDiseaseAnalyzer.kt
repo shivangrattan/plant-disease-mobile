@@ -15,6 +15,10 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.TensorImage.createFrom
 import org.tensorflow.lite.support.image.ops.ResizeOp
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.set
+import androidx.core.graphics.get
+import androidx.core.graphics.scale
 
 class LeafDiseaseSegmentationHelper(
     context: Context,
@@ -64,7 +68,7 @@ class LeafDiseaseSegmentationHelper(
 
                 val startTime = SystemClock.uptimeMillis()
 
-                val resizedBitmap = Bitmap.createScaledBitmap(bitmap, 256, 256, true)
+                val resizedBitmap = bitmap.scale(256, 256)
                 val tensorImage = createFrom(TensorImage.fromBitmap(resizedBitmap), DataType.FLOAT32)
                 val inputBuffer = tensorImage.tensorBuffer.buffer.rewind()
 
@@ -90,7 +94,7 @@ class LeafDiseaseSegmentationHelper(
                 Log.i(TAG, "Active disease mask pixels: $diseaseCount")
                 val ratio = diseaseCount.toFloat() / leafCount.toFloat()
 
-                listener.onResults(maskedLeaf, inferenceTime, ratio)
+                listener.onResults(resizedBitmap, maskedLeaf, maskedOriginal, inferenceTime, ratio)
             } catch (e: Exception) {
                 Log.e(TAG, "Processing error: ${e.message}")
                 listener.onError("Processing error: ${e.message}")
@@ -99,16 +103,16 @@ class LeafDiseaseSegmentationHelper(
     }
 
     private fun applyMaskToOriginal(resized: Bitmap, output: Array<FloatArray>): Pair<Bitmap, Int> {
-        val resultBitmap = Bitmap.createBitmap(resized.width, resized.height, Bitmap.Config.ARGB_8888)
+        val resultBitmap = createBitmap(resized.width, resized.height)
         var count = 0
 
         for (y in 0 until resized.height) {
             for (x in 0 until resized.width) {
                 val maskValue = output[y][x]
                 if (maskValue < 0.5f) {
-                    resultBitmap.setPixel(x, y, Color.BLACK)
+                    resultBitmap[x, y] = Color.BLACK
                 } else {
-                    resultBitmap.setPixel(x, y, resized.getPixel(x, y))
+                    resultBitmap[x, y] = resized[x, y]
                     count++
                 }
             }
@@ -118,26 +122,32 @@ class LeafDiseaseSegmentationHelper(
     }
 
     private fun applyDiseaseMask(resized: Bitmap, output: Array<FloatArray>, output2: Array<FloatArray>): Pair<Bitmap, Int> {
-        val resultBitmap = Bitmap.createBitmap(resized.width, resized.height, Bitmap.Config.ARGB_8888)
+        val resultBitmap = createBitmap(resized.width, resized.height)
         var count = 0
 
         for (y in 0 until resized.height) {
             for (x in 0 until resized.width) {
-                if (output[y][x] > 0.5f && output2[y][x] > 0.5f) {
-                    val color = resized.getPixel(x, y)
+                val color = resized[x, y]
 
-                    val factor = 1.5
+                if (output[y][x] > 0.5f && output2[y][x] > 0.5f) {
+                    // Brighten disease pixels
                     val a = Color.alpha(color)
-                    val r = (Color.red(color) * factor).toInt().coerceIn(0, 255)
-                    val g = Color.green(color)
-                    val b = Color.blue(color)
+                    val r = (Color.red(color) * 1.1).toInt().coerceIn(0, 255)  // Reduce brightness (darken)
+                    val g = (Color.green(color) * 1.1).toInt().coerceIn(0, 255)
+                    val b = (Color.blue(color) * 1.1).toInt().coerceIn(0, 255)
 
                     val newColor = Color.argb(a, r, g, b)
-                    resultBitmap.setPixel(x, y, newColor)
+                    resultBitmap[x, y] = newColor
                     count++
-                }
-                else {
-                    resultBitmap.setPixel(x, y, resized.getPixel(x, y))
+                } else {
+                    // Darken non-disease pixels
+                    val a = Color.alpha(color)
+                    val r = (Color.red(color) * 0.5).toInt().coerceIn(0, 255)  // Reduce brightness (darken)
+                    val g = (Color.green(color) * 0.5).toInt().coerceIn(0, 255)
+                    val b = (Color.blue(color) * 0.5).toInt().coerceIn(0, 255)
+
+                    val newColor = Color.argb(a, r, g, b)
+                    resultBitmap[x, y] = newColor
                 }
             }
         }
@@ -146,7 +156,7 @@ class LeafDiseaseSegmentationHelper(
     }
 
     interface SegmentationListener {
-        fun onResults(resultImage: Bitmap, inferenceTime: Long, ratio: Float)
+        fun onResults(resizedBitmap: Bitmap, resultImage: Bitmap, leafMask: Bitmap, inferenceTime: Long, ratio: Float)
         fun onError(error: String)
     }
 }
